@@ -977,25 +977,45 @@ This command turns on `tab-bar-mode' and display each view in a tab."
 
 (defun org-rooted-view-imenu-function ()
   (save-excursion
-    (let (results
-          prev-level
-          olp)
-      (while (text-property-search-forward 'org-agenda-structural-header)
-        (let ((level (get-text-property (pos-bol) 'org-rooted-outline-level))
-              (headline (or (get-text-property (pos-bol) 'org-rooted-formatted-olp)
-                            (org-link-display-format
-                             (string-trim (buffer-substring-no-properties (pos-bol) (pos-eol)))))))
-          (if (or (not prev-level)
-                  (> level prev-level))
-              (setq olp (cons headline olp))
-            (setq olp (list headline)))
-          (push (cons (string-join (reverse olp) "/")
-                      (if imenu-use-markers
+    (cl-labels
+        ((materialize (head)
+           (let (result)
+             (dolist (entry (nreverse (cdr head)))
+               (let ((submenu (cdr entry)))
+                 (push (if (and (consp submenu) (null (car submenu)))
+                           (cons (car entry) (materialize submenu))
+                         entry)
+                       result)))
+             (nreverse result))))
+      (let* ((root (cons nil nil))
+             (stack (list (cons 0 root)))
+             (prev-level 0)
+             last-entry)
+        (while (text-property-search-forward 'org-agenda-structural-header)
+          (let* ((level (get-text-property (pos-bol) 'org-rooted-outline-level))
+                 (headline (or (get-text-property (pos-bol) 'org-rooted-formatted-olp)
+                               (org-link-display-format
+                                (string-trim (buffer-substring-no-properties (pos-bol) (pos-eol))))))
+                 (pos (if imenu-use-markers
                           (copy-marker (pos-bol))
-                        (pos-bol)))
-                results)
-          (setq prev-level level)))
-      results)))
+                        (pos-bol))))
+            (cond
+             ((> level prev-level)
+              (when last-entry
+                (let ((submenu (cdr last-entry)))
+                  (unless (and (consp submenu) (null (car submenu)))
+                    (setq submenu (cons nil nil))
+                    (setcdr last-entry submenu))
+                  (push (cons level submenu) stack))))
+             ((< level prev-level)
+              (while (> (caar stack) level)
+                (pop stack))))
+            (let* ((entry (cons headline pos))
+                   (container (cdr (car stack))))
+              (setcdr container (cons entry (cdr container)))
+              (setq last-entry entry
+                    prev-level level))))
+        (materialize root)))))
 
 ;;;; Default sorting function
 
