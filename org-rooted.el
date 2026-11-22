@@ -153,7 +153,8 @@ feature doesn't work anyway."
   "Store a bookmark to a view of the current subtree."
   (interactive nil org-mode)
   (unless (org-entry-get nil org-rooted-bookmark-type-property)
-    (org-read-property-value org-rooted-bookmark-type-property))
+    (org-set-property org-rooted-bookmark-type-property
+                      (org-read-property-value org-rooted-bookmark-type-property)))
   (let* ((filename (thread-last
                      (org-base-buffer (current-buffer))
                      (buffer-file-name)
