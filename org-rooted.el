@@ -543,6 +543,10 @@ This method should be called in the output buffer."
                                      &optional archivedp)
   (let ((items (thread-last
                  (oref sink items)
+                 ;; Items are collected in reverse order.  Reverse them
+                 ;; before sorting so that a stable sort retains the
+                 ;; original order of items that compare equal.
+                 (reverse)
                  (seq-sort (or org-rooted-sort-function
                                #'ignore)))))
     (org-rooted-sink-emit-items sink items archivedp)
