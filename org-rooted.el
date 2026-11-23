@@ -555,7 +555,11 @@ This method should be called in the output buffer."
 (defun org-rooted-write-to-sink (root sink)
   ;; For `org-ql--add-markers'.
   (require 'org-ql)
-  (let ((type (cl-etypecase root
+  ;; `org-get-outline-path' is called with its cache enabled below.
+  ;; Start from a clean cache so that headings renamed since the last
+  ;; refresh are not taken from stale outline-path entries.
+  (let ((org-outline-path-cache nil)
+        (type (cl-etypecase root
                 (marker (org-with-point-at root
                           (org-rooted--subtree-type)))
                 (buffer (with-current-buffer root
@@ -792,33 +796,34 @@ This method should be called in the output buffer."
    :marker (get-text-property (point) 'org-marker)))
 
 (cl-defun org-rooted--revert-view (&key marker highlight parent index)
-  (let ((inhibit-read-only t)
-        (root (org-rooted-bookmark-root
-               (or org-rooted-view-name
-                   (error "org-rooted-view-name is not set"))))
-        (sink (make-instance 'org-rooted-agenda-view
-                             :buffer (current-buffer))))
-    (erase-buffer)
-    (org-rooted-write-to-sink root sink)
-    (org-agenda-finalize)
-    (goto-char (point-min))
-    (cond
-     (marker
-      (when (text-property-search-forward 'org-marker marker #'equal)
-        (beginning-of-line)))
-     (parent
-      (when (text-property-search-forward 'org-marker parent #'equal)
-        (when index
-          (forward-line index)))))
-    (pcase highlight
-      (`t
-       (org-rooted--highlight-line))
-      (`(id ,id)
-       (save-excursion
-         (goto-char (point-min))
-         (when (text-property-search-forward 'ID id #'equal)
-           (org-rooted--highlight-line)))))
-    (message "Refreshed the view")))
+  (org-element-with-disabled-cache
+    (let ((inhibit-read-only t)
+          (root (org-rooted-bookmark-root
+                 (or org-rooted-view-name
+                     (error "org-rooted-view-name is not set"))))
+          (sink (make-instance 'org-rooted-agenda-view
+                               :buffer (current-buffer))))
+      (erase-buffer)
+      (org-rooted-write-to-sink root sink)
+      (org-agenda-finalize)
+      (goto-char (point-min))
+      (cond
+       (marker
+        (when (text-property-search-forward 'org-marker marker #'equal)
+          (beginning-of-line)))
+       (parent
+        (when (text-property-search-forward 'org-marker parent #'equal)
+          (when index
+            (forward-line index)))))
+      (pcase highlight
+        (`t
+         (org-rooted--highlight-line))
+        (`(id ,id)
+         (save-excursion
+           (goto-char (point-min))
+           (when (text-property-search-forward 'ID id #'equal)
+             (org-rooted--highlight-line)))))
+      (message "Refreshed the view"))))
 
 (defun org-rooted-bookmark-root (bookmark-name)
   (pcase-exhaustive (bookmark-get-bookmark-record bookmark-name)
